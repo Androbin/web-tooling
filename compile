@@ -1,0 +1,40 @@
+#!/bin/bash
+shopt -s globstar
+
+DIR="$(dirname "$(readlink -f "$0")")"
+
+cd src
+html_raw=$(grep -l --exclude='html/*' -- '' **/*.htm)
+mapfile -t html_files <<< "$html_raw"
+css_files=(**/*.css)
+js_files=(**/*.js)
+cd ..
+
+for file in "${css_files[@]}"; do
+  "$DIR"/compile-css.sh "$file" &
+done
+
+wait
+
+for file in "${js_files[@]}"; do
+  "$DIR"/compile-js.sh "$file" &
+done
+
+wait
+
+for file in "${html_files[@]}"; do
+  "$DIR"/compile-html.sh "$file" &
+done
+
+wait
+
+for file in "${css_files[@]}" "${js_files[@]}"; do
+  "$DIR"/checksum-write.sh "src/$file"
+  "$DIR"/checksum-write.sh "bin/$file"
+done
+
+for file in src/html/*; do
+  "$DIR"/checksum-write.sh "$file"
+done
+
+rm -rf tmp
