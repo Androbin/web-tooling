@@ -8,6 +8,10 @@ mapfile -t directives <<< "$directives_raw"
 dependencies=()
 dirty=false
 
+if [ -z "${directives[0]}" ]; then
+  directives=()
+fi
+
 for directive in "${directives[@]}"; do
   [[ ${directive} =~ ^'<!--#include "'([^\"]+)'"-->'$ ]]
 
