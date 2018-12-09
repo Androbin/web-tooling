@@ -1,10 +1,11 @@
 #!/bin/bash
 shopt -s globstar
+shopt -s nullglob
 
 DIR="$(dirname "$(readlink -f "$0")")"
 
 cd src
-html_raw=$(grep -l --exclude='html/*' -- '' **/*.htm)
+html_raw=$(grep -l --exclude='html/*' -- '' **/*.html **/*.htm)
 mapfile -t html_files <<< "$html_raw"
 css_files=(**/*.css)
 js_files=(**/*.js)
