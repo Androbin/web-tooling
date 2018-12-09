@@ -13,7 +13,7 @@ if [ -z "${directives[0]}" ]; then
 fi
 
 for directive in "${directives[@]}"; do
-  [[ ${directive} =~ ^'<!--#include "'([^\"]+)'"-->'$ ]]
+  [[ ${directive} =~ ^'<!--#include "'/?([^\"]+)'"-->'$ ]]
 
   path_raw="${BASH_REMATCH[1]}"
 
