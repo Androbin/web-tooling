@@ -11,23 +11,10 @@ css_files=(**/*.css)
 js_files=(**/*.js)
 cd ..
 
-for file in "${css_files[@]}"; do
-  "$DIR"/compile-css.sh "$file" &
-done
-
-wait
-
-for file in "${js_files[@]}"; do
-  "$DIR"/compile-js.sh "$file" &
-done
-
-wait
-
-for file in "${html_files[@]}"; do
-  "$DIR"/compile-html.sh "$file" &
-done
-
-wait
+cores=$(grep -c ^processor /proc/cpuinfo)
+echo "${css_files[@]}" | xargs -P "$cores" -n 1 "$DIR"/compile-css.sh
+echo "${js_files[@]}" | xargs -P "$cores" -n 1 "$DIR"/compile-js.sh
+echo "${html_files[@]}" | xargs -P "$cores" -n 1 "$DIR"/compile-html.sh
 
 for file in "${css_files[@]}" "${js_files[@]}"; do
   "$DIR"/checksum-write.sh "src/$file"
