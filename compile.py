@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from binascii import hexlify
 from csscompressor import compress as csscompress
-from glob import glob
+from glob import iglob
 from hashlib import md5
 from htmlmin import minify as htmlmin
 from itertools import chain
@@ -20,17 +20,18 @@ except FileNotFoundError:
   meta.digest = dict()
   meta.deps = set()
 
-def xglob(include, exclude=[]):
-  include = set(chain(*(glob('src/' + x, recursive=True) for x in include)))
-  exclude = set(chain(*(glob('src/' + x, recursive=True) for x in exclude)))
-  return set(map(lambda x: x[4:], include - exclude))
+def xglob(prefix, include, exclude=[]):
+  include = set(chain(*(iglob(prefix + x, recursive=True) for x in include)))
+  exclude = set(chain(*(iglob(prefix + x, recursive=True) for x in exclude)))
+  return set(map(lambda x: x[len(prefix):], include - exclude))
 
-all_docs = xglob(
+all_docs = xglob('src/',
   ['**/*.html', '**/*.htm'],
   ['html/**/*.html', 'html/**/*.htm']
 )
-all_assets = xglob(
-  ['**/*.css', '**/*.js', '**/*.json']
+all_assets = xglob('src/',
+  ['**/*.css', '**/*.js', '**/*.json'],
+  ['html/**/*.html', 'html/**/*.htm']
 )
 
 def calc_digest(path):
@@ -41,7 +42,7 @@ def calc_digest(path):
 
   return hash_md5.digest()
 
-digest = {path: calc_digest('src/' + path) for path in (all_docs | all_assets)}
+digest = {path: calc_digest('src/' + path) for path in (all_docs | all_assets | {'.htaccess'})}
 
 def has_changed(path):
   return path not in meta.digest or digest[path] != meta.digest[path]
@@ -51,9 +52,20 @@ def get_changed(all_files):
 
 changed_docs = get_changed(all_docs)
 changed_assets = get_changed(all_assets)
+changed_htaccess = has_changed('.htaccess')
 
-deps_assets = set(dep[0] for dep in meta.deps if dep[1] in changed_assets)
-changed_docs |= all_docs.intersection(deps_assets)
+deps_assets_old = set()
+
+while True:
+  deps_assets = set(dep[0] for dep in meta.deps if dep[1] in changed_assets)
+
+  if deps_assets == deps_assets_old:
+    break
+
+  changed_docs |= all_docs.intersection(deps_assets)
+  changed_assets |= all_assets.intersection(deps_assets)
+  changed_htaccess |= '.htaccess' in deps_assets
+  deps_assets_old = deps_assets
 
 def suffix_path(path, suffix):
   ext = path[path.rfind('.'):]
@@ -75,20 +87,21 @@ def process(paths):
     if ext in ['.css']:
       processed = csscompress(raw)
       pathOut = digestify_path(path)
-      cleanup = glob('bin/' + cleanup_path(path))
+      cleanup = [cleanup_path(path)]
     elif ext in ['.js', '.json']:
-      processed = process_js(raw)
+      processed = process_js(path, raw)
       pathOut = digestify_path(path)
-      cleanup = glob('bin/' + cleanup_path(path))
+      cleanup = [cleanup_path(path)]
     else:
       processed = process_doc(path, raw)
       pathOut = path
       cleanup = []
 
-    os.makedirs(os.path.dirname('bin/' + path), exist_ok=True)
+    for dirt in xglob('bin/', cleanup):
+      os.remove('bin/' + dirt)
+      print(dirt, file=sys.stderr)
 
-    for dirt in cleanup:
-      os.remove(dirt)
+    os.makedirs(os.path.dirname('bin/' + pathOut), exist_ok=True)
 
     with open('bin/' + pathOut, 'w+') as file:
       file.write(processed)
@@ -96,7 +109,7 @@ def process(paths):
     print(path)
     print(pathOut, file=sys.stderr)
 
-def process_js(raw):
+def process_js(pathSelf, raw):
   references = re.finditer(r'/[*][*]/(["\']/?)([^"\']+)(["\'])/[*][*]/', raw)
 
   for match in references:
@@ -106,6 +119,7 @@ def process_js(raw):
     suffix = match.group(3)
 
     raw = raw.replace(reference, prefix + digestify_path(path) + suffix)
+    meta.deps.add((pathSelf, path))
 
   return jsmin(raw, quote_chars="'\"`")
 
@@ -135,9 +149,9 @@ def process_includes(pathSelf, rawSelf):
 
     ext = path[path.rfind('.'):]
     is_asset = ext in ['.css', '.js', '.json']
-    path = 'bin/' + digestify_path(path) if is_asset else 'src/' + path
+    rawPath = 'bin/' + digestify_path(path) if is_asset else 'src/' + path
 
-    with open(path, 'r') as file:
+    with open(rawPath, 'r') as file:
       raw = file.read()
 
     rawSelf = rawSelf.replace(directive, raw)
@@ -157,16 +171,18 @@ def process_htaccess():
     path = match.group(2)
     suffix = match.group(4)
     raw = raw.replace(preload, prefix + digestify_path(path) + suffix)
+    meta.deps.add(('.htaccess', path))
 
   with open('bin/.htaccess', 'w+') as file:
     file.write(raw)
 
+  print('.htaccess')
   print('.htaccess', file=sys.stderr)
 
 process(changed_assets)
 process(changed_docs)
 
-if (changed_assets | changed_docs):
+if changed_htaccess:
   process_htaccess()
 
 meta.digest.update(digest)
