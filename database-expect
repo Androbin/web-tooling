@@ -1,0 +1,22 @@
+#!/usr/bin/expect
+
+set timeout 20
+
+set domain [lindex $argv 0]
+set master [lindex $argv 1]
+set user [lindex $argv 2]
+set database [lindex $argv 3]
+set password [lindex $argv 4]
+
+eval spawn "ssh $domain@ssh.strato.de"
+
+expect "$domain@ssh.strato.de's password:"
+send "$master\r";
+
+expect "bavartec.de>"
+send "mysql -h rdbms -u $user -p $database\r";
+
+expect "Enter password:"
+send "$password\r";
+
+interact
