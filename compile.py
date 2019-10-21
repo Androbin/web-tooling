@@ -25,14 +25,7 @@ def xglob(prefix, include, exclude=[]):
   exclude = set(chain(*(iglob(prefix + x, recursive=True) for x in exclude)))
   return set(map(lambda x: x[len(prefix):], include - exclude))
 
-all_docs = xglob('src/',
-  ['**/*.html', '**/*.htm'],
-  ['html/**/*.html', 'html/**/*.htm']
-)
-all_assets = xglob('src/',
-  ['**/*.css', '**/*.js', '**/*.json'],
-  ['html/**/*.html', 'html/**/*.htm']
-)
+all_assets = xglob('src/', ['**/*.' + ext for ext in ['css', 'htm', 'html', 'js', 'json']])
 
 def calc_digest(path):
   hash_md5 = md5()
@@ -42,7 +35,7 @@ def calc_digest(path):
 
   return hash_md5.digest()
 
-digest = {path: calc_digest('src/' + path) for path in (all_docs | all_assets | {'.htaccess'})}
+digest = {path: calc_digest('src/' + path) for path in (all_assets | {'.htaccess'})}
 
 def has_changed(path):
   return path not in meta.digest or digest[path] != meta.digest[path]
@@ -50,7 +43,6 @@ def has_changed(path):
 def get_changed(all_files):
   return set(path for path in all_files if has_changed(path))
 
-changed_docs = get_changed(all_docs)
 changed_assets = get_changed(all_assets)
 changed_htaccess = has_changed('.htaccess')
 
@@ -62,7 +54,6 @@ while True:
   if deps_assets == deps_assets_old:
     break
 
-  changed_docs |= all_docs.intersection(deps_assets)
   changed_assets |= all_assets.intersection(deps_assets)
   changed_htaccess |= '.htaccess' in deps_assets
   deps_assets_old = deps_assets
@@ -79,23 +70,7 @@ def cleanup_path(path):
 
 def process(paths):
   for path in paths:
-    ext = path[path.rfind('.'):]
-
-    with open('src/' + path, 'r') as file:
-      raw = file.read()
-
-    if ext in ['.css']:
-      processed = csscompress(raw)
-      pathOut = digestify_path(path)
-      cleanup = [cleanup_path(path)]
-    elif ext in ['.js', '.json']:
-      processed = process_js(path, raw)
-      pathOut = digestify_path(path)
-      cleanup = [cleanup_path(path)]
-    else:
-      processed = process_doc(path, raw)
-      pathOut = path
-      cleanup = []
+    processed, pathOut, cleanup = process_raw(path)
 
     for dirt in xglob('bin/', cleanup):
       os.remove('bin/' + dirt)
@@ -109,18 +84,37 @@ def process(paths):
     print(path)
     print(pathOut, file=sys.stderr)
 
+def process_raw(path):
+  ext = path[path.rfind('.'):]
+
+  with open('src/' + path, 'r') as file:
+    raw = file.read()
+
+  if ext in ['.css']:
+    processed = process_css(path, raw)
+    pathOut = digestify_path(path)
+    cleanup = [cleanup_path(path)]
+  elif ext in ['.js', '.json']:
+    processed = process_js(path, raw)
+    pathOut = digestify_path(path)
+    cleanup = [cleanup_path(path)]
+  elif ext in ['.htm', '.html']:
+    processed = process_doc(path, raw)
+    pathOut = path
+    cleanup = []
+  else:
+    processed = raw
+    pathOut = path
+    cleanup = []
+
+  return processed, pathOut, cleanup
+
+def process_css(pathSelf, raw):
+  raw = process_includes(pathSelf, raw)
+  return csscompress(raw)
+
 def process_js(pathSelf, raw):
-  references = re.finditer(r'/[*][*]/(["\']/?)([^"\']+)(["\'])/[*][*]/', raw)
-
-  for match in references:
-    reference = match.group(0)
-    prefix = match.group(1)
-    path = match.group(2)
-    suffix = match.group(3)
-
-    raw = raw.replace(reference, prefix + digestify_path(path) + suffix)
-    meta.deps.add((pathSelf, path))
-
+  raw = process_paths(pathSelf, raw)
   return jsmin(raw, quote_chars="'\"`")
 
 def process_doc(pathSelf, raw):
@@ -134,11 +128,26 @@ def process_doc(pathSelf, raw):
     raw = raw.replace(dependency, prop + '="/' + digestify_path(path) + '"')
     meta.deps.add((pathSelf, path))
 
-  return htmlmin(
-    process_includes(pathSelf, raw),
+  raw = process_includes(pathSelf, raw)
+  raw = process_paths(pathSelf, raw)
+  return htmlmin(raw,
     remove_comments=True,
     remove_optional_attribute_quotes=False,
   )
+
+def process_paths(pathSelf, raw):
+  references = re.finditer(r'/[*][*]/(["\']/?)([^"\']+)(["\'])/[*][*]/', raw)
+
+  for match in references:
+    reference = match.group(0)
+    prefix = match.group(1)
+    path = match.group(2)
+    suffix = match.group(3)
+
+    raw = raw.replace(reference, prefix + digestify_path(path) + suffix)
+    meta.deps.add((pathSelf, path))
+
+  return raw
 
 def process_includes(pathSelf, rawSelf):
   directives = re.finditer(r'<!--#include "/?([^"]+)"-->', rawSelf)
@@ -147,12 +156,7 @@ def process_includes(pathSelf, rawSelf):
     directive = match.group(0)
     path = match.group(1)
 
-    ext = path[path.rfind('.'):]
-    is_asset = ext in ['.css', '.js', '.json']
-    rawPath = 'bin/' + digestify_path(path) if is_asset else 'src/' + path
-
-    with open(rawPath, 'r') as file:
-      raw = file.read()
+    raw = process_raw(path)[0]
 
     rawSelf = rawSelf.replace(directive, raw)
     meta.deps.add((pathSelf, path))
@@ -180,7 +184,6 @@ def process_htaccess():
   print('.htaccess', file=sys.stderr)
 
 process(changed_assets)
-process(changed_docs)
 
 if changed_htaccess:
   process_htaccess()
