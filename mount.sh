@@ -11,8 +11,13 @@ fi
 
 config=($(cat config/sftp))
 host="${config[0]}"
-pass="${config[1]}"
-remotePath="${config[2]}"
+user="${config[1]}"
+pass="${config[2]}"
+remotePath="${config[3]}"
 localPath=sftp
 
-echo "$pass" | sshfs -o password_stdin "${encoding_flags[@]}" "$user"@"$host":"$remotePath" "$localPath"
+if [ "$1" = "unsafe" ]; then
+  curlftpfs "$user":"$pass"@"$host" "$localPath"
+else
+  echo "$pass" | sshfs -o password_stdin "${encoding_flags[@]}" "$user"@"$host":"$remotePath" "$localPath"
+fi
