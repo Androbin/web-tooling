@@ -74,15 +74,15 @@ def process(paths):
 
     for dirt in xglob('bin/', cleanup):
       os.remove('bin/' + dirt)
-      print(dirt, file=sys.stderr)
+      print(dirt)
 
     os.makedirs(os.path.dirname('bin/' + pathOut), exist_ok=True)
 
     with open('bin/' + pathOut, 'w+') as file:
       file.write(processed)
 
-    print(path)
-    print(pathOut, file=sys.stderr)
+    print(path, file=sys.stderr)
+    print(pathOut)
 
 def process_raw(path):
   ext = path[path.rfind('.'):]
@@ -180,8 +180,8 @@ def process_htaccess():
   with open('bin/.htaccess', 'w+') as file:
     file.write(raw)
 
-  print('.htaccess')
   print('.htaccess', file=sys.stderr)
+  print('.htaccess')
 
 process(changed_assets)
 

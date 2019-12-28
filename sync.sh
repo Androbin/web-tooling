@@ -18,4 +18,4 @@ function foo() {
 
 export -f foo
 
-cat - | xargs -r bash -c 'foo "$@"' _
+xargs -r bash -c 'foo "$@"' _
