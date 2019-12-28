@@ -7,7 +7,10 @@ function foo() {
       printf '\r%sUploading: %s' "$(tput el)" "$file"
       mkdir -p sftp/"$(dirname "$file")"
       cp --preserve=timestamps bin/"$file" sftp/"$file"
-    elif [ -e sftp/"$file" ]; then
+    fi
+  done
+  for file in "$@"; do
+    if ! [ -e bin/"$file" ] && [ -e sftp/"$file" ]; then
       printf '\r%sCleaning: %s' "$(tput el)" "$file"
       rm sftp/"$file"
     fi

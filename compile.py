@@ -183,6 +183,7 @@ def process_htaccess():
   print('.htaccess', file=sys.stderr)
   print('.htaccess')
 
+changed_assets = sorted(changed_assets)
 process(changed_assets)
 
 if changed_htaccess:
