@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-"$DIR"/mount.sh
+"$DIR"/mount.sh || exit
 
 function foo() {
   for file in "$@"; do
