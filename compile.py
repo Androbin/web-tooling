@@ -25,7 +25,7 @@ def xglob(prefix, include, exclude=[]):
   exclude = set(chain(*(iglob(prefix + x, recursive=True) for x in exclude)))
   return set(map(lambda x: x[len(prefix):], include - exclude))
 
-all_assets = xglob('src/', ['**/*.' + ext for ext in ['css', 'htm', 'html', 'js', 'json']])
+all_assets = xglob('src/', ['**/*.' + ext for ext in ['css', 'htm', 'html', 'js', 'json', 'php']])
 
 def calc_digest(path):
   hash_md5 = md5()
