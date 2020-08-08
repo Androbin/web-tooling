@@ -13,8 +13,8 @@ eval spawn "ssh $domain@ssh.strato.de"
 expect "$domain@ssh.strato.de's password:"
 send "$master\r";
 
-expect "bavartec.de>"
-send "mysql -h rdbms -u $user -p $database\r";
+expect "$domain>"
+send "LANG=en_US.UTF-8 exec mysql -h rdbms -u $user -p $database\r";
 
 expect "Enter password:"
 send "$password\r";
